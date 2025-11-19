@@ -1,0 +1,68 @@
+#!/usr/bin/env zsh
+
+# fetch user input
+pkg_to_extract=$1
+pkg_extract_to=$2
+
+# input validation
+[ -z "$pkg_to_extract" ] && {
+  print "Error: "$0" requires at least one arg"
+  return 1
+}
+
+# if extract dir not exist, create under pwd
+[ -z "$pkg_extract_to" ] && {
+  pkg_extract_to=""$(pwd)"/"$pkg_to_extract""
+  ! [ -d "$pkg_extract_to" ] && {
+    mkdir -p "$pkg_extract_to" || {
+      print "Error: "$pkg_extract_to" not exist, and unable to create"
+      return 1
+    }
+  }
+}
+
+# extract package content list
+# if package not exist, ensure extract dir is empty, and delete if so
+pkg_contents=$(pacman -Ql "$pkg_to_extract") || {
+  print "Error: package "$pkg_to_extract" is not installed"
+  for check_empty in "$pkg_extract_to"(NF); do :; done || {
+    rm -rf "$pkg_extract_to"
+  }
+  return 1
+}
+
+# iterate over package content list line by line, creating dir in extractdir if is dir, or otherwise copying files
+IFS=$'\n'
+for pkg_line in $=pkg_contents; do
+  while true; do
+    pkg_line_test=${pkg_line: :1}
+    pkg_line=${pkg_line:1}
+    [ "$pkg_line_test" = ' ' ] && {
+      break
+    }
+  done
+  [ -d "$pkg_line" ] && {
+    mkdir -p ""$pkg_extract_to"/"$pkg_line""
+  } || {
+    cp -r "$pkg_line" ""$pkg_extract_to"/"$pkg_line""
+  }
+
+  pkg_determ_perms() {
+    readflag=0
+    permvar=$(permvar_raw=$(stat "$pkg_line"); IFS=$'\n'; for i in $=permvar_raw; do [[ "$i" = *"Access"*"Uid"* ]] && print $i; done; unset IFS)
+    while true; do
+      chkchar=${permvar: :1}
+      permvar=${permvar:1}
+      [ "$chkchar" = "/" ] && {
+        print ''
+        break
+      }
+      [ "$readflag" = 1 ] && print -n "$chkchar"
+      [ "$chkchar" = "(" ] && readflag=1
+    done
+  }
+
+  chmod $(pkg_determ_perms) ""$pkg_extract_to"/"$pkg_line""
+
+done
+unset IFS
