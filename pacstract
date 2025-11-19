@@ -1,5 +1,11 @@
 #!/usr/bin/env zsh
 
+# env validation
+[ $(whoami) != root ] && {
+  print "Error: pacstract requires root"
+  return 1
+}
+
 # fetch user input
 pkg_to_extract=$1
 pkg_extract_to=$2
@@ -68,6 +74,36 @@ for pkg_line in $=pkg_contents; do
   }
 
   chmod $(pkg_determ_perms) ""$pkg_extract_to"/"$pkg_line""
+
+  # determine file/folder owner + group and apply
+  pkg_determ_own() {
+    readflag=0
+    breakflag=0
+    permvar=${"$(permvar_raw=$(stat "$pkg_line"); IFS=$'\n'; for i in $=permvar_raw; do [[ "$i" = *"Access"*"Uid"* ]] && print $i; done; unset IFS)"//' '/''}
+    while true; do
+      chkchar=${permvar: :1}
+      permvar=${permvar:1}
+      [ "$chkchar" = "/" ] && {
+        [ "$breakflag" = 2 ] && {
+          print ''
+          break
+        }
+        [ "$breakflag" = 1 ] && {
+          breakflag=2
+          readflag=1
+          print -n ':'
+        }
+        [ "$breakflag" = 0 ] && {
+          breakflag=1
+        }
+      }
+      [ "$readflag" = 2 ] && print -n "$chkchar"
+      [ "$readflag" = 1 ] && [ "$chkchar" = "(" ] && readflag=2
+      [ "$readflag" = 0 ] && [ "$chkchar" = "(" ] && readflag=1
+    done
+  }
+
+  chown $(pkg_determ_own) ""$pkg_extract_to"/"$pkg_line""
 
 done
 unset IFS
