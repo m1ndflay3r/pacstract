@@ -34,6 +34,8 @@ pkg_contents=$(pacman -Ql "$pkg_to_extract") || {
 # iterate over package content list line by line, creating dir in extractdir if is dir, or otherwise copying files
 IFS=$'\n'
 for pkg_line in $=pkg_contents; do
+
+  # trim package name from beginning of each line
   while true; do
     pkg_line_test=${pkg_line: :1}
     pkg_line=${pkg_line:1}
@@ -41,12 +43,15 @@ for pkg_line in $=pkg_contents; do
       break
     }
   done
+
+  # if line is directory, create it - otherwise, copy file
   [ -d "$pkg_line" ] && {
     mkdir -p ""$pkg_extract_to"/"$pkg_line""
   } || {
     cp -r "$pkg_line" ""$pkg_extract_to"/"$pkg_line""
   }
 
+  # determine file attributes + permissions, and apply to file / folder
   pkg_determ_perms() {
     readflag=0
     permvar=$(permvar_raw=$(stat "$pkg_line"); IFS=$'\n'; for i in $=permvar_raw; do [[ "$i" = *"Access"*"Uid"* ]] && print $i; done; unset IFS)
